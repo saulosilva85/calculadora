@@ -9,72 +9,80 @@ ctk.set_appearance_mode("dark")
 # LÓGICA DE FORMATAÇÃO (Visual)
 # =========================
 def formatar_para_display(valor_string):
-    """Transforma '1500.5' em '1.500,5' apenas para exibição"""
-    if not valor_string or valor_string in "+-*/÷×":
+    """Transforma '1500.' em '1.500,' imediatamente"""
+    if not valor_string or any(op in valor_string for op in "+-*/÷×"):
         return valor_string
     
     try:
-        # Se houver um ponto (decimal interno), separamos
+        # Detecta o ponto decimal interno
         if "." in valor_string:
-            inteiro, decimal = valor_string.split(".")
+            partes = valor_string.split(".")
+            inteiro = partes[0]
+            # Se houver números após o ponto, eles são o decimal. Se não, é vazio.
+            decimal = partes[1] if len(partes) > 1 else ""
         else:
             inteiro, decimal = valor_string, None
 
-        # Formata o milhar no inteiro (1500 -> 1.500)
-        # Usamos o padrão de trocar vírgula por ponto para o padrão BR
-        inteiro_formatado = f"{int(inteiro):,}".replace(",", ".")
+        # Formata milhar (1500 -> 1.500)
+        try:
+            inteiro_formatado = f"{int(inteiro):,}".replace(",", ".")
+        except:
+            inteiro_formatado = inteiro
         
+        # Se decimal não for None, significa que o usuário clicou na vírgula
         if decimal is not None:
-            # Retorna com a vírgula visual
             return f"{inteiro_formatado},{decimal}"
-        
-        # Se a string termina em ponto (usuário acabou de clicar na vírgula)
-        if valor_string.endswith("."):
-            return inteiro_formatado + ","
             
         return inteiro_formatado
     except:
         return valor_string
 
 def formatar_expressao_completa(expressao):
-    """Formata todos os números dentro de uma conta (ex: 1500+500)"""
-    # Regex que identifica números (inteiros ou decimais com ponto)
-    return re.sub(r"\d+(\.\d+)?", lambda m: formatar_para_display(m.group(0)), expressao)
+    """Formata números e garante espaços entre operadores (Estilo Android)"""
+    # 1. Adiciona espaços para o visual não ficar "junto"
+    visual = expressao.replace("*", " × ").replace("/", " ÷ ").replace("+", " + ").replace("-", " - ")
+    
+    # 2. REGEX CORRIGIDA: \d+\.?\d* captura o número mesmo se terminar em ponto
+    return re.sub(r"\d+\.?\d*", lambda m: formatar_para_display(m.group(0)), visual)
 
 # =========================
 # ESTADO E CÁLCULO
 # =========================
-expr_interna = "0" # Aqui guardamos 1500.5 (padrão Python)
+expr_interna = "0" 
 
 def calcular_resultado():
     global expr_interna
     try:
-        # O eval precisa de pontos para decimais e não pode ter pontos de milhar
-        # Nossa expr_interna já está nesse formato
-        resultado = eval(expr_interna, {"__builtins__": None}, {"math": math, "Decimal": Decimal})
+        limpa = expr_interna
+        # Remove ponto ou operador solto no final para não dar erro no eval
+        if limpa.endswith("."): limpa = limpa[:-1]
+        while limpa and limpa[-1] in "+-*/": limpa = limpa[:-1]
         
-        # Formata o número para string sem notação científica
+        if not limpa or limpa == "0": return ""
+        
+        resultado = eval(limpa, {"__builtins__": None}, {"math": math, "Decimal": Decimal})
+        
+        # Formata resultado final limpo
         res_str = format(float(resultado), ".10f").rstrip('0').rstrip('.')
-        return res_str
+        return res_str if res_str != "" else "0"
     except:
         return ""
 
 def atualizar_interface(finalizar=False):
     global expr_interna
     
-    # 1. Display de cima (Sempre formatado com pontos e vírgula visual)
+    # Display principal com formatação instantânea
     display_visual = formatar_expressao_completa(expr_interna)
-    display_visual = display_visual.replace("*", "×").replace("/", "÷")
     display_var.set(display_visual)
 
-    # 2. Display de baixo (Resultado em tempo real)
+    # Display de resultado (baixo) com espaçamento Android
     if not finalizar and any(op in expr_interna for op in "+-*/"):
         res = calcular_resultado()
         if res:
             result_var.set(formatar_para_display(res))
         else:
             result_var.set("")
-    elif finalizar:
+    else:
         result_var.set("")
 
 # =========================
@@ -97,11 +105,10 @@ def add_op(op):
 
 def btn_virgula():
     global expr_interna
-    # Pegamos apenas o último número sendo digitado
+    # Pega o último número da sequência
     partes = re.split(r"[\+\-\*\/]", expr_interna)
     ultimo_num = partes[-1]
     
-    # Só adiciona o ponto interno se o número atual não tiver um
     if "." not in ultimo_num:
         expr_interna += "."
     atualizar_interface()
@@ -109,7 +116,6 @@ def btn_virgula():
 def limpar():
     global expr_interna
     expr_interna = "0"
-    result_var.set("")
     atualizar_interface()
 
 def apagar():
@@ -132,31 +138,31 @@ def btn_igual():
 # =========================
 app = ctk.CTk()
 app.title("Calculadora Pro")
-app.geometry("360x640")
+app.geometry("380x680")
 
 display_var = ctk.StringVar(value="0")
 result_var = ctk.StringVar(value="")
 
-# Área dos Displays
+# Área dos Displays (Margens Android)
 frame_tela = ctk.CTkFrame(app, fg_color="transparent")
-frame_tela.pack(fill="x", padx=20, pady=(40, 20))
+frame_tela.pack(fill="x", padx=25, pady=(60, 20))
 
-ctk.CTkLabel(frame_tela, textvariable=display_var, font=("Arial", 45, "bold"), anchor="e").pack(fill="x")
-ctk.CTkLabel(frame_tela, textvariable=result_var, font=("Arial", 24), text_color="#888", anchor="e").pack(fill="x")
+ctk.CTkLabel(frame_tela, textvariable=display_var, font=("Arial", 48, "bold"), anchor="e").pack(fill="x")
+ctk.CTkLabel(frame_tela, textvariable=result_var, font=("Arial", 26), text_color="#777", anchor="e").pack(fill="x", pady=(15, 0))
 
 # Grade de Botões
 frame_grid = ctk.CTkFrame(app, fg_color="transparent")
-frame_grid.pack(expand=True, fill="both", padx=10, pady=10)
+frame_grid.pack(expand=True, fill="both", padx=15, pady=15)
 
 def criar_btn(txt, r, c, cmd, cor="#333", span=1):
-    btn = ctk.CTkButton(frame_grid, text=txt, font=("Arial", 22), fg_color=cor, 
-                        hover_color="#555", height=70, corner_radius=15, command=cmd)
-    btn.grid(row=r, column=c, columnspan=span, sticky="nsew", padx=5, pady=5)
+    btn = ctk.CTkButton(frame_grid, text=txt, font=("Arial", 24), fg_color=cor, 
+                        hover_color="#444", height=75, corner_radius=20, command=cmd)
+    btn.grid(row=r, column=c, columnspan=span, sticky="nsew", padx=6, pady=6)
 
 for i in range(4): frame_grid.columnconfigure(i, weight=1)
 for i in range(5): frame_grid.rowconfigure(i, weight=1)
 
-# Layout
+# Layout dos Botões
 criar_btn("AC", 0, 0, limpar, "#A5A5A5")
 criar_btn("⌫", 0, 1, apagar, "#A5A5A5")
 criar_btn("%", 0, 2, lambda: add_op("/100"), "#A5A5A5")
