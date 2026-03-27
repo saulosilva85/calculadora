@@ -144,7 +144,7 @@ def btn_igual():
 # UI
 # =========================
 app = ctk.CTk()
-app.title("Calculadora Corrigida")
+app.title("Calculadora")
 app.geometry("380x680")
 
 display_var = ctk.StringVar(value="0")
